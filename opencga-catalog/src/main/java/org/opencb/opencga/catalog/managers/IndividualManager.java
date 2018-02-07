@@ -115,7 +115,6 @@ public class IndividualManager extends AnnotationSetManager<Individual> {
         individual.setAffectationStatus(ParamUtils.defaultObject(individual.getAffectationStatus(), Individual.AffectationStatus.UNKNOWN));
         individual.setPhenotypes(ParamUtils.defaultObject(individual.getPhenotypes(), Collections.emptyList()));
         individual.setAnnotationSets(ParamUtils.defaultObject(individual.getAnnotationSets(), Collections.emptyList()));
-        individual.setAnnotationSets(validateAnnotationSets(individual.getAnnotationSets()));
         individual.setAttributes(ParamUtils.defaultObject(individual.getAttributes(), Collections.emptyMap()));
         individual.setSamples(ParamUtils.defaultObject(individual.getSamples(), Collections.emptyList()));
         individual.setStatus(new Status());
@@ -124,6 +123,8 @@ public class IndividualManager extends AnnotationSetManager<Individual> {
         String userId = userManager.getUserId(sessionId);
         long studyId = studyManager.getId(userId, studyStr);
         authorizationManager.checkStudyPermission(studyId, userId, StudyAclEntry.StudyPermissions.WRITE_INDIVIDUALS);
+
+        List<VariableSet> variableSetList = validateNewAnnotationSetsAndExtractVariableSets(studyId, individual.getAnnotationSets());
 
         individual.setRelease(studyManager.getCurrentRelease(studyId));
 
@@ -176,7 +177,7 @@ public class IndividualManager extends AnnotationSetManager<Individual> {
         individual.setSamples(sampleList);
 
         // Create the individual
-        QueryResult<Individual> queryResult = individualDBAdaptor.insert(individual, studyId, options);
+        QueryResult<Individual> queryResult = individualDBAdaptor.insert(studyId, individual, variableSetList, options);
         auditManager.recordCreation(AuditRecord.Resource.individual, queryResult.first().getId(), userId, queryResult.first(), null, null);
 
         addSampleInformation(queryResult, studyId, userId);
@@ -459,6 +460,7 @@ public class IndividualManager extends AnnotationSetManager<Individual> {
     public QueryResult<Individual> update(String studyStr, String entryStr, ObjectMap parameters, QueryOptions options, String sessionId)
             throws CatalogException {
         ParamUtils.checkObj(parameters, "parameters");
+        parameters = new ObjectMap(parameters);
         options = ParamUtils.defaultObject(options, QueryOptions::new);
 
         MyResourceId resource = getId(entryStr, studyStr, sessionId);
@@ -466,7 +468,18 @@ public class IndividualManager extends AnnotationSetManager<Individual> {
         long studyId = resource.getStudyId();
         long individualId = resource.getResourceId();
 
-        authorizationManager.checkIndividualPermission(studyId, individualId, userId, IndividualAclEntry.IndividualPermissions.UPDATE);
+        // Check permissions...
+        // Only check write annotation permissions if the user wants to update the annotation sets
+        if (parameters.containsKey(IndividualDBAdaptor.QueryParams.ANNOTATION_SETS.key())) {
+            authorizationManager.checkIndividualPermission(resource.getStudyId(), resource.getResourceId(), userId,
+                    IndividualAclEntry.IndividualPermissions.WRITE_ANNOTATIONS);
+        }
+        // Only check update permissions if the user wants to update anything apart from the annotation sets
+        if ((parameters.size() == 1 && !parameters.containsKey(IndividualDBAdaptor.QueryParams.ANNOTATION_SETS.key()))
+                || parameters.size() > 1) {
+            authorizationManager.checkIndividualPermission(resource.getStudyId(), resource.getResourceId(), userId,
+                    IndividualAclEntry.IndividualPermissions.UPDATE);
+        }
 
         for (Map.Entry<String, Object> param : parameters.entrySet()) {
             IndividualDBAdaptor.QueryParams queryParam = IndividualDBAdaptor.QueryParams.getParam(param.getKey());
@@ -550,6 +563,8 @@ public class IndividualManager extends AnnotationSetManager<Individual> {
                 case PHENOTYPES:
                 case LIFE_STATUS:
                 case AFFECTATION_STATUS:
+                case ANNOTATION_SETS:
+                case PRIVATE_FIELDS:
                     break;
                 default:
                     throw new CatalogException("Cannot update " + queryParam);
@@ -569,12 +584,14 @@ public class IndividualManager extends AnnotationSetManager<Individual> {
             parameters.put(IndividualDBAdaptor.QueryParams.MOTHER_ID.key(), tmpResource.getResourceId());
         }
 
+        List<VariableSet> variableSetList = checkUpdateAnnotationsAndExtractVariableSets(resource, parameters, individualDBAdaptor);
+
         if (options.getBoolean(Constants.INCREMENT_VERSION)) {
             // We do need to get the current release to properly create a new version
             options.put(Constants.CURRENT_RELEASE, studyManager.getCurrentRelease(resource.getStudyId()));
         }
 
-        QueryResult<Individual> queryResult = individualDBAdaptor.update(individualId, parameters, options);
+        QueryResult<Individual> queryResult = individualDBAdaptor.update(individualId, parameters, variableSetList, options);
         auditManager.recordUpdate(AuditRecord.Resource.individual, individualId, userId, parameters, null, null);
 
         // Add sample information
@@ -699,65 +716,65 @@ public class IndividualManager extends AnnotationSetManager<Individual> {
     }
 
 
-    @Override
-    public QueryResult<AnnotationSet> createAnnotationSet(String id, @Nullable String studyStr, String variableSetId,
-                                                          String annotationSetName, Map<String, Object> annotations,
-                                                          Map<String, Object> attributes, String sessionId) throws CatalogException {
-        ParamUtils.checkParameter(annotationSetName, "annotationSetName");
-        ParamUtils.checkObj(annotations, "annotations");
-        attributes = ParamUtils.defaultObject(attributes, HashMap<String, Object>::new);
+//    @Override
+//    public QueryResult<AnnotationSet> createAnnotationSet(String id, @Nullable String studyStr, String variableSetId,
+//                                                          String annotationSetName, Map<String, Object> annotations,
+//                                                          Map<String, Object> attributes, String sessionId) throws CatalogException {
+//        ParamUtils.checkParameter(annotationSetName, "annotationSetName");
+//        ParamUtils.checkObj(annotations, "annotations");
+//        attributes = ParamUtils.defaultObject(attributes, HashMap<String, Object>::new);
+//
+//        MyResourceId resource = catalogManager.getIndividualManager().getId(id, studyStr, sessionId);
+//        authorizationManager.checkIndividualPermission(resource.getStudyId(), resource.getResourceId(), resource.getUser(),
+//                IndividualAclEntry.IndividualPermissions.WRITE_ANNOTATIONS);
+//        MyResourceId variableSetResource = studyManager.getVariableSetId(variableSetId,
+//                Long.toString(resource.getStudyId()), sessionId);
+//
+//        QueryResult<VariableSet> variableSet = studyDBAdaptor.getVariableSet(variableSetResource.getResourceId(), null,
+//                resource.getUser());
+//        if (variableSet.getNumResults() == 0) {
+//            // Variable set must be confidential and the user does not have those permissions
+//            throw new CatalogAuthorizationException("Permission denied: User " + resource.getUser() + " cannot create annotations over "
+//                    + "that variable set");
+//        }
+//
+//        QueryResult<AnnotationSet> annotationSet = createAnnotationSet(resource.getResourceId(), variableSet.first(), annotationSetName,
+//                annotations, studyManager.getCurrentRelease(resource.getStudyId()), attributes, individualDBAdaptor);
+//
+//        auditManager.recordUpdate(AuditRecord.Resource.individual, resource.getResourceId(), resource.getUser(),
+//                new ObjectMap("annotationSets", annotationSet.first()), "annotate", null);
+//
+//        return annotationSet;
+//    }
 
-        MyResourceId resource = catalogManager.getIndividualManager().getId(id, studyStr, sessionId);
-        authorizationManager.checkIndividualPermission(resource.getStudyId(), resource.getResourceId(), resource.getUser(),
-                IndividualAclEntry.IndividualPermissions.WRITE_ANNOTATIONS);
-        MyResourceId variableSetResource = studyManager.getVariableSetId(variableSetId,
-                Long.toString(resource.getStudyId()), sessionId);
-
-        QueryResult<VariableSet> variableSet = studyDBAdaptor.getVariableSet(variableSetResource.getResourceId(), null,
-                resource.getUser());
-        if (variableSet.getNumResults() == 0) {
-            // Variable set must be confidential and the user does not have those permissions
-            throw new CatalogAuthorizationException("Permission denied: User " + resource.getUser() + " cannot create annotations over "
-                    + "that variable set");
-        }
-
-        QueryResult<AnnotationSet> annotationSet = createAnnotationSet(resource.getResourceId(), variableSet.first(), annotationSetName,
-                annotations, studyManager.getCurrentRelease(resource.getStudyId()), attributes, individualDBAdaptor);
-
-        auditManager.recordUpdate(AuditRecord.Resource.individual, resource.getResourceId(), resource.getUser(),
-                new ObjectMap("annotationSets", annotationSet.first()), "annotate", null);
-
-        return annotationSet;
-    }
-
-    @Override
-    public QueryResult<AnnotationSet> updateAnnotationSet(String id, @Nullable String studyStr, String annotationSetName,
-                                                          Map<String, Object> newAnnotations, String sessionId) throws CatalogException {
-        ParamUtils.checkParameter(id, "id");
-        ParamUtils.checkParameter(annotationSetName, "annotationSetName");
-        ParamUtils.checkObj(newAnnotations, "newAnnotations");
-
-        MyResourceId resource = getId(id, studyStr, sessionId);
-        authorizationManager.checkIndividualPermission(resource.getStudyId(), resource.getResourceId(), resource.getUser(),
-                IndividualAclEntry.IndividualPermissions.WRITE_ANNOTATIONS);
-
-        // Update the annotation
-        QueryResult<AnnotationSet> queryResult = updateAnnotationSet(resource, annotationSetName, newAnnotations, individualDBAdaptor);
-
-        if (queryResult == null || queryResult.getNumResults() == 0) {
-            throw new CatalogException("There was an error with the update");
-        }
-
-        AnnotationSet annotationSet = queryResult.first();
-
-        // Audit the changes
-        AnnotationSet annotationSetUpdate = new AnnotationSet(annotationSet.getName(), annotationSet.getVariableSetId(),
-                newAnnotations, annotationSet.getCreationDate(), 1, null);
-        auditManager.recordUpdate(AuditRecord.Resource.individual, resource.getResourceId(), resource.getUser(),
-                new ObjectMap("annotationSets", Collections.singletonList(annotationSetUpdate)), "update annotation", null);
-
-        return queryResult;
-    }
+//    @Override
+//    public QueryResult<AnnotationSet> updateAnnotationSet(String id, @Nullable String studyStr, String annotationSetName,
+//                                                          Map<String, Object> newAnnotations, String sessionId) throws CatalogException {
+//        ParamUtils.checkParameter(id, "id");
+//        ParamUtils.checkParameter(annotationSetName, "annotationSetName");
+//        ParamUtils.checkObj(newAnnotations, "newAnnotations");
+//
+//        MyResourceId resource = getId(id, studyStr, sessionId);
+//        authorizationManager.checkIndividualPermission(resource.getStudyId(), resource.getResourceId(), resource.getUser(),
+//                IndividualAclEntry.IndividualPermissions.WRITE_ANNOTATIONS);
+//
+//        // Update the annotation
+//        QueryResult<AnnotationSet> queryResult = updateAnnotationSet(resource, annotationSetName, newAnnotations, individualDBAdaptor);
+//
+//        if (queryResult == null || queryResult.getNumResults() == 0) {
+//            throw new CatalogException("There was an error with the update");
+//        }
+//
+//        AnnotationSet annotationSet = queryResult.first();
+//
+//        // Audit the changes
+//        AnnotationSet annotationSetUpdate = new AnnotationSet(annotationSet.getName(), annotationSet.getVariableSetId(),
+//                newAnnotations, annotationSet.getCreationDate(), 1, null);
+//        auditManager.recordUpdate(AuditRecord.Resource.individual, resource.getResourceId(), resource.getUser(),
+//                new ObjectMap("annotationSets", Collections.singletonList(annotationSetUpdate)), "update annotation", null);
+//
+//        return queryResult;
+//    }
 
     @Override
     public QueryResult<AnnotationSet> deleteAnnotationSet(String id, @Nullable String studyStr, String annotationSetName, String sessionId)

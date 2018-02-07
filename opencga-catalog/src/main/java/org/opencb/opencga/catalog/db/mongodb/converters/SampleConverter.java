@@ -17,7 +17,11 @@
 package org.opencb.opencga.catalog.db.mongodb.converters;
 
 import org.bson.Document;
+import org.opencb.opencga.catalog.db.api.SampleDBAdaptor;
 import org.opencb.opencga.core.models.Sample;
+import org.opencb.opencga.core.models.VariableSet;
+
+import java.util.List;
 
 /**
  * Created by pfurio on 19/01/16.
@@ -30,8 +34,10 @@ public class SampleConverter extends AnnotableConverter<Sample> {
 
 
     @Override
-    public Document convertToStorageType(Sample object) {
-        Document document = super.convertToStorageType(object);
+    public Document convertToStorageType(Sample object, List<VariableSet> variableSetList) {
+        Document document = super.convertToStorageType(object, variableSetList);
+        document.remove(SampleDBAdaptor.QueryParams.ANNOTATION_SETS.key());
+
         document.put("id", document.getInteger("id").longValue());
         document.put("individual", new Document());
         return document;
