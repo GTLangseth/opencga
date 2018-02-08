@@ -26,7 +26,6 @@ import org.opencb.opencga.catalog.db.api.CohortDBAdaptor;
 import org.opencb.opencga.catalog.db.api.SampleDBAdaptor;
 import org.opencb.opencga.catalog.exceptions.CatalogException;
 import org.opencb.opencga.catalog.managers.AbstractManager;
-import org.opencb.opencga.catalog.managers.AnnotationSetManager;
 import org.opencb.opencga.catalog.managers.CohortManager;
 import org.opencb.opencga.catalog.utils.Constants;
 import org.opencb.opencga.core.exception.VersionException;
@@ -259,11 +258,11 @@ public class CohortWSServer extends OpenCGAWSServer {
                 @QueryParam(Constants.DELETE_ANNOTATION) String deleteAnnotation,
             @ApiParam(value = "params", required = true) Map<String, Object> params) {
         try {
-            ObjectMap privateMap = new ObjectMap();
-            privateMap.putIfNotEmpty(AnnotationSetManager.Action.DELETE_ANNOTATION_SET.name(), deleteAnnotationSet);
-            privateMap.putIfNotEmpty(AnnotationSetManager.Action.DELETE_ANNOTATION.name(), deleteAnnotation);
-            if (!privateMap.isEmpty()) {
-                params.put(CohortDBAdaptor.QueryParams.PRIVATE_FIELDS.key(), privateMap);
+            if (StringUtils.isNotEmpty(deleteAnnotation)) {
+                params.put(CohortDBAdaptor.UpdateParams.DELETE_ANNOTATION.key(), deleteAnnotation);
+            }
+            if (StringUtils.isNotEmpty(deleteAnnotationSet)) {
+                params.put(CohortDBAdaptor.UpdateParams.DELETE_ANNOTATION_SET.key(), deleteAnnotationSet);
             }
 
             return createOkResponse(catalogManager.getCohortManager().update(studyStr, cohortStr, new ObjectMap(params), queryOptions,
@@ -359,13 +358,14 @@ public class CohortWSServer extends OpenCGAWSServer {
                     .append(CohortDBAdaptor.QueryParams.STUDY_ID.key(), resourceIds.getStudyId())
                     .append(CohortDBAdaptor.QueryParams.ID.key(), resourceIds.getResourceIds())
                     .append(Constants.FLATTENED_ANNOTATIONS, asMap);
+            QueryOptions queryOptions = new QueryOptions();
 
             if (StringUtils.isNotEmpty(annotationsetName)) {
                 query.append(Constants.ANNOTATION, Constants.ANNOTATION_SET_NAME + "=" + annotationsetName);
+                queryOptions.put(QueryOptions.INCLUDE, Constants.ANNOTATION_SET_NAME + "." + annotationsetName);
             }
 
-            QueryResult<Cohort> search = cohortManager.search(String.valueOf(resourceIds.getStudyId()), query, new QueryOptions(),
-                    sessionId);
+            QueryResult<Cohort> search = cohortManager.search(String.valueOf(resourceIds.getStudyId()), query, queryOptions, sessionId);
             if (search.getNumResults() == 1) {
                 return createOkResponse(new QueryResult<>("List annotationSets", search.getDbTime(),
                         search.first().getAnnotationSets().size(), search.first().getAnnotationSets().size(), search.getWarningMsg(),

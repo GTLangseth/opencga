@@ -25,7 +25,6 @@ import org.opencb.commons.datastore.core.QueryResult;
 import org.opencb.opencga.catalog.db.api.IndividualDBAdaptor;
 import org.opencb.opencga.catalog.exceptions.CatalogException;
 import org.opencb.opencga.catalog.managers.AbstractManager;
-import org.opencb.opencga.catalog.managers.AnnotationSetManager;
 import org.opencb.opencga.catalog.managers.IndividualManager;
 import org.opencb.opencga.catalog.managers.StudyManager;
 import org.opencb.opencga.catalog.utils.Constants;
@@ -269,12 +268,14 @@ public class IndividualWSServer extends OpenCGAWSServer {
                     .append(IndividualDBAdaptor.QueryParams.STUDY_ID.key(), resourceIds.getStudyId())
                     .append(IndividualDBAdaptor.QueryParams.ID.key(), resourceIds.getResourceIds())
                     .append(Constants.FLATTENED_ANNOTATIONS, asMap);
+            QueryOptions queryOptions = new QueryOptions();
 
             if (StringUtils.isNotEmpty(annotationsetName)) {
                 query.append(Constants.ANNOTATION, Constants.ANNOTATION_SET_NAME + "=" + annotationsetName);
+                queryOptions.put(QueryOptions.INCLUDE, Constants.ANNOTATION_SET_NAME + "." + annotationsetName);
             }
 
-            QueryResult<Individual> search = individualManager.search(String.valueOf(resourceIds.getStudyId()), query, new QueryOptions(),
+            QueryResult<Individual> search = individualManager.search(String.valueOf(resourceIds.getStudyId()), query, queryOptions,
                     sessionId);
             if (search.getNumResults() == 1) {
                 return createOkResponse(new QueryResult<>("List annotationSets", search.getDbTime(),
@@ -378,13 +379,8 @@ public class IndividualWSServer extends OpenCGAWSServer {
             query.remove("updateSampleVersion");
 
             ObjectMap params = new QueryOptions(jsonObjectMapper.writeValueAsString(updateParams));
-
-            ObjectMap privateMap = new ObjectMap();
-            privateMap.putIfNotEmpty(AnnotationSetManager.Action.DELETE_ANNOTATION_SET.name(), deleteAnnotationSet);
-            privateMap.putIfNotEmpty(AnnotationSetManager.Action.DELETE_ANNOTATION.name(), deleteAnnotation);
-            if (!privateMap.isEmpty()) {
-                params.put(IndividualDBAdaptor.QueryParams.PRIVATE_FIELDS.key(), privateMap);
-            }
+            params.putIfNotEmpty(IndividualDBAdaptor.UpdateParams.DELETE_ANNOTATION.key(), deleteAnnotation);
+            params.putIfNotEmpty(IndividualDBAdaptor.UpdateParams.DELETE_ANNOTATION_SET.key(), deleteAnnotationSet);
 
             QueryResult<Individual> queryResult = catalogManager.getIndividualManager().update(studyStr, individualStr, params,
                     queryOptions, sessionId);
