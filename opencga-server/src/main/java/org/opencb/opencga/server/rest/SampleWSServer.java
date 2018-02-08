@@ -243,8 +243,9 @@ public class SampleWSServer extends OpenCGAWSServer {
                 @QueryParam("study") String studyStr,
             @ApiParam(value = "Create a new version of sample", defaultValue = "false")
                 @QueryParam(Constants.INCREMENT_VERSION) boolean incVersion,
-            @ApiParam(value = "Delete a specific annotation set") @QueryParam(Constants.DELETE_ANNOTATION_SET) String deleteAnnotationSet,
-            @ApiParam(value = "Delete a specific annotation. Format: annotationSetName:variable[,annotationSetName:variable...]")
+            @ApiParam(value = "Delete a specific annotation set. AnnotationSetName expected.")
+                @QueryParam(Constants.DELETE_ANNOTATION_SET) String deleteAnnotationSet,
+            @ApiParam(value = "Delete a specific annotation. Format: Comma separated list of annotationSetName:variable")
                 @QueryParam(Constants.DELETE_ANNOTATION) String deleteAnnotation,
             @ApiParam(value = "params", required = true) UpdateSamplePOST parameters) {
         try {
@@ -373,7 +374,7 @@ public class SampleWSServer extends OpenCGAWSServer {
                 }
                 annotation = StringUtils.join(annotationList, ";");
             }
-            query.append(Constants.ANNOTATION, annotation);
+            query.putIfNotEmpty(Constants.ANNOTATION, annotation);
 
             QueryResult<Sample> search = sampleManager.search(String.valueOf(resourceId.getStudyId()), query, new QueryOptions(),
                     sessionId);
