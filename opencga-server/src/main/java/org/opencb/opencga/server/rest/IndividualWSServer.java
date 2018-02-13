@@ -16,7 +16,9 @@
 
 package org.opencb.opencga.server.rest;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import io.swagger.annotations.*;
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.opencb.commons.datastore.core.ObjectMap;
 import org.opencb.commons.datastore.core.Query;
@@ -67,6 +69,8 @@ public class IndividualWSServer extends OpenCGAWSServer {
                     String studyStr,
             @ApiParam(value = "JSON containing individual information", required = true) IndividualCreatePOST params) {
         try {
+            ObjectUtils.defaultIfNull(params, new IndividualCreatePOST());
+
             if (StringUtils.isNotEmpty(studyIdStr)) {
                 studyStr = studyIdStr;
             }
@@ -374,11 +378,13 @@ public class IndividualWSServer extends OpenCGAWSServer {
                     defaultValue = "false") @QueryParam("updateSampleVersion") boolean refresh,
             @ApiParam(value = "params", required = true) IndividualUpdatePOST updateParams) {
         try {
+            ObjectUtils.defaultIfNull(updateParams, new IndividualUpdatePOST());
+
             queryOptions.put(Constants.REFRESH, refresh);
             queryOptions.remove("updateSampleVersion");
             query.remove("updateSampleVersion");
 
-            ObjectMap params = new QueryOptions(jsonObjectMapper.writeValueAsString(updateParams));
+            ObjectMap params = updateParams.toIndividualObjectMap();
             params.putIfNotEmpty(IndividualDBAdaptor.UpdateParams.DELETE_ANNOTATION.key(), deleteAnnotation);
             params.putIfNotEmpty(IndividualDBAdaptor.UpdateParams.DELETE_ANNOTATION_SET.key(), deleteAnnotationSet);
 
@@ -417,33 +423,34 @@ public class IndividualWSServer extends OpenCGAWSServer {
             @ApiImplicitParam(name = "limit", value = "Maximum number of documents (groups) to be returned", dataType = "integer",
                     paramType = "query", defaultValue = "50")
     })
-    public Response groupBy(@ApiParam(value = "Comma separated list of fields by which to group by.", required = true) @DefaultValue("")
-                            @QueryParam("fields") String fields,
-                            @ApiParam(value = "(DEPRECATED) Use study instead", hidden = true) @QueryParam("studyId") String studyIdStr,
-                            @ApiParam(value = "Study [[user@]project:]study where study and project can be either the id or alias")
-                            @QueryParam("study") String studyStr,
-                            @ApiParam(value = "name", required = false) @QueryParam("name") String names,
-                            @ApiParam(value = "sex", required = false) @QueryParam("sex") Individual.Sex sex,
-                            @ApiParam(value = "ethnicity", required = false) @QueryParam("ethnicity") String ethnicity,
-                            @ApiParam(value = "Population name", required = false) @QueryParam("population.name") String populationName,
-                            @ApiParam(value = "Subpopulation name", required = false) @QueryParam("population.subpopulation")
-                                    String populationSubpopulation,
-                            @ApiParam(value = "Population description", required = false) @QueryParam("population.description")
-                                    String populationDescription,
-                            @ApiParam(value = "Karyotypic sex", required = false) @QueryParam("karyotypicSex")
-                                    Individual.KaryotypicSex karyotypicSex,
-                            @ApiParam(value = "Life status", required = false) @QueryParam("lifeStatus") Individual.LifeStatus lifeStatus,
-                            @ApiParam(value = "Affectation status", required = false) @QueryParam("affectationStatus")
-                                    Individual.AffectationStatus affectationStatus,
-                            @ApiParam(value = "Variable set id or name", hidden = true) @QueryParam("variableSetId") String variableSetId,
-                            @ApiParam(value = "Variable set id or name", required = false) @QueryParam("variableSet") String variableSet,
-                            @ApiParam(value = "annotationsetName", required = false) @QueryParam("annotationsetName")
-                                    String annotationsetName,
-                            @ApiParam(value = "annotation", required = false) @QueryParam("annotation") String annotation,
-                            @ApiParam(value = "Release value (Current release from the moment the families were first created)")
-                            @QueryParam("release") String release,
-                            @ApiParam(value = "Snapshot value (Latest version of families in the specified release)") @QueryParam("snapshot")
-                                    int snapshot) {
+    public Response groupBy(
+            @ApiParam(value = "Comma separated list of fields by which to group by.", required = true) @DefaultValue("")
+                @QueryParam("fields") String fields,
+            @ApiParam(value = "(DEPRECATED) Use study instead", hidden = true) @QueryParam("studyId") String studyIdStr,
+            @ApiParam(value = "Study [[user@]project:]study where study and project can be either the id or alias")
+                @QueryParam("study") String studyStr,
+            @ApiParam(value = "name", required = false) @QueryParam("name") String names,
+            @ApiParam(value = "sex", required = false) @QueryParam("sex") Individual.Sex sex,
+            @ApiParam(value = "ethnicity", required = false) @QueryParam("ethnicity") String ethnicity,
+            @ApiParam(value = "Population name", required = false) @QueryParam("population.name") String populationName,
+            @ApiParam(value = "Subpopulation name", required = false) @QueryParam("population.subpopulation")
+                String populationSubpopulation,
+            @ApiParam(value = "Population description", required = false) @QueryParam("population.description")
+                String populationDescription,
+            @ApiParam(value = "Karyotypic sex", required = false) @QueryParam("karyotypicSex")
+                Individual.KaryotypicSex karyotypicSex,
+            @ApiParam(value = "Life status", required = false) @QueryParam("lifeStatus") Individual.LifeStatus lifeStatus,
+            @ApiParam(value = "Affectation status", required = false) @QueryParam("affectationStatus")
+                Individual.AffectationStatus affectationStatus,
+            @ApiParam(value = "DEPRECATED: Use annotation queryParam this way: annotationSet[=|==|!|!=]{annotationSetName}")
+                @QueryParam("annotationsetName") String annotationsetName,
+            @ApiParam(value = "DEPRECATED: Use annotation queryParam this way: variableSet[=|==|!|!=]{variableSetId}")
+                @QueryParam("variableSet") String variableSet,
+            @ApiParam(value = "Annotation, e.g: key1=value(;key2=value)") @QueryParam("annotation") String annotation,
+            @ApiParam(value = "Release value (Current release from the moment the families were first created)")
+                @QueryParam("release") String release,
+            @ApiParam(value = "Snapshot value (Latest version of families in the specified release)") @QueryParam("snapshot")
+                int snapshot) {
         try {
             if (StringUtils.isNotEmpty(studyIdStr)) {
                 studyStr = studyIdStr;
@@ -549,6 +556,8 @@ public class IndividualWSServer extends OpenCGAWSServer {
                     + "propagate the permissions defined to the samples that are associated to the matching individuals",
                     required = true) IndividualAcl params) {
         try {
+            ObjectUtils.defaultIfNull(params, new IndividualAcl());
+
             Individual.IndividualAclParams aclParams = new Individual.IndividualAclParams(params.getPermissions(), params.getAction(),
                     params.sample, params.propagate);
             List<String> idList = getIdList(params.individual);
@@ -623,6 +632,32 @@ public class IndividualWSServer extends OpenCGAWSServer {
 
     protected static class IndividualUpdatePOST extends IndividualPOST {
         public List<String> samples;
+
+        public ObjectMap toIndividualObjectMap() throws JsonProcessingException {
+            Individual individual = new Individual()
+                    .setName(name)
+                    .setFather(father != null ? new Individual().setName(father) : null)
+                    .setMother(mother != null ? new Individual().setName(mother) : null)
+                    .setMultiples(multiples)
+                    .setSex(sex)
+                    .setKaryotypicSex(karyotypicSex)
+                    .setEthnicity(ethnicity)
+                    .setPopulation(population)
+                    .setLifeStatus(lifeStatus)
+                    .setAffectationStatus(affectationStatus)
+                    .setDateOfBirth(dateOfBirth)
+                    .setParentalConsanguinity(parentalConsanguinity != null ? parentalConsanguinity : false)
+                    .setPhenotypes(phenotypes);
+            individual.setAnnotationSets(annotationSets);
+
+            ObjectMap params = new ObjectMap(jsonObjectMapper.writeValueAsString(individual));
+            if (parentalConsanguinity == null) {
+                params.remove("parentalConsanguinity");
+            }
+            params.putIfNotNull("samples", samples);
+
+            return params;
+        }
     }
 
 

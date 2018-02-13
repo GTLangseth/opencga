@@ -18,6 +18,7 @@ package org.opencb.opencga.server.rest;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.annotations.*;
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.opencb.commons.datastore.core.ObjectMap;
 import org.opencb.commons.datastore.core.Query;
@@ -100,6 +101,8 @@ public class SampleWSServer extends OpenCGAWSServer {
             @ApiParam(value = "Individual id or name to whom the sample will correspond.") @QueryParam("individual") String individual,
             @ApiParam(value = "JSON containing sample information", required = true) CreateSamplePOST params) {
         try {
+            ObjectUtils.defaultIfNull(params, new CreateSamplePOST());
+
             if (StringUtils.isNotEmpty(studyIdStr)) {
                 studyStr = studyIdStr;
             }
@@ -248,6 +251,8 @@ public class SampleWSServer extends OpenCGAWSServer {
                 @QueryParam(Constants.DELETE_ANNOTATION) String deleteAnnotation,
             @ApiParam(value = "params", required = true) UpdateSamplePOST parameters) {
         try {
+            ObjectUtils.defaultIfNull(parameters, new UpdateSamplePOST());
+
             ObjectMap params = new ObjectMap(jsonObjectMapper.writeValueAsString(parameters));
             params.putIfNotEmpty(SampleDBAdaptor.UpdateParams.DELETE_ANNOTATION.key(), deleteAnnotation);
             params.putIfNotEmpty(SampleDBAdaptor.UpdateParams.DELETE_ANNOTATION_SET.key(), deleteAnnotationSet);
@@ -297,24 +302,25 @@ public class SampleWSServer extends OpenCGAWSServer {
             @ApiImplicitParam(name = "limit", value = "Maximum number of documents (groups) to be returned", dataType = "integer",
                     paramType = "query", defaultValue = "50")
     })
-    public Response groupBy(@ApiParam(value = "Comma separated list of fields by which to group by.", required = true) @DefaultValue("")
-                            @QueryParam("fields") String fields,
-                            @ApiParam(value = "DEPRECATED: use study instead", hidden = true) @DefaultValue("") @QueryParam("studyId")
-                                    String studyIdStr,
-                            @ApiParam(value = "Study [[user@]project:]study where study and project can be either the id or alias")
-                            @QueryParam("study") String studyStr,
-                            @ApiParam(value = "Comma separated list of names.") @QueryParam("name") String name,
-                            @ApiParam(value = "source") @QueryParam("source") String source,
-                            @ApiParam(value = "Individual id or name", hidden = true) @QueryParam("individual.id") String individualId,
-                            @ApiParam(value = "Individual id or name") @QueryParam("individual") String individual,
-                            @ApiParam(value = "annotationsetName") @QueryParam("annotationsetName") String annotationsetName,
-                            @ApiParam(value = "variableSetId", hidden = true) @QueryParam("variableSetId") String variableSetId,
-                            @ApiParam(value = "variableSet") @QueryParam("variableSet") String variableSet,
-                            @ApiParam(value = "Annotation, e.g: key1=value(,key2=value)") @QueryParam("annotation") String annotation,
-                            @ApiParam(value = "Release value (Current release from the moment the families were first created)")
-                            @QueryParam("release") String release,
-                            @ApiParam(value = "Snapshot value (Latest version of families in the specified release)") @QueryParam("snapshot")
-                                    int snapshot) {
+    public Response groupBy(
+            @ApiParam(value = "Comma separated list of fields by which to group by.", required = true) @DefaultValue("")
+                @QueryParam("fields") String fields,
+            @ApiParam(value = "DEPRECATED: use study instead", hidden = true) @DefaultValue("") @QueryParam("studyId") String studyIdStr,
+            @ApiParam(value = "Study [[user@]project:]study where study and project can be either the id or alias")
+                @QueryParam("study") String studyStr,
+            @ApiParam(value = "Comma separated list of names.") @QueryParam("name") String name,
+            @ApiParam(value = "source") @QueryParam("source") String source,
+            @ApiParam(value = "Individual id or name", hidden = true) @QueryParam("individual.id") String individualId,
+            @ApiParam(value = "Individual id or name") @QueryParam("individual") String individual,
+            @ApiParam(value = "DEPRECATED: Use annotation queryParam this way: annotationSet[=|==|!|!=]{annotationSetName}")
+                @QueryParam("annotationsetName") String annotationsetName,
+            @ApiParam(value = "DEPRECATED: Use annotation queryParam this way: variableSet[=|==|!|!=]{variableSetId}")
+                @QueryParam("variableSet") String variableSet,
+            @ApiParam(value = "Annotation, e.g: key1=value(;key2=value)") @QueryParam("annotation") String annotation,
+            @ApiParam(value = "Release value (Current release from the moment the families were first created)")
+                @QueryParam("release") String release,
+            @ApiParam(value = "Snapshot value (Latest version of families in the specified release)") @QueryParam("snapshot")
+                    int snapshot) {
         try {
             if (StringUtils.isNotEmpty(studyIdStr)) {
                 studyStr = studyIdStr;
@@ -578,6 +584,7 @@ public class SampleWSServer extends OpenCGAWSServer {
                     + "propagate the permissions defined to the individuals that are associated to the matching samples", required = true)
                     SampleAcl params) {
         try {
+            ObjectUtils.defaultIfNull(params, new SampleAcl());
             Sample.SampleAclParams sampleAclParams = new Sample.SampleAclParams(
                     params.getPermissions(), params.getAction(), params.individual, params.file, params.cohort, params.propagate);
             List<String> idList = getIdList(params.sample);
